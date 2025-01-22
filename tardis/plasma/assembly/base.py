@@ -17,7 +17,7 @@ from tardis.plasma.properties import (
     RadiationFieldCorrection,
     StimulatedEmissionFactor,
 )
-from tardis.plasma.properties.base import TransitionProbabilitiesProperty
+from tardis.plasma.properties.base import TransitionProbabilitiesProperty, PreviousIterationProperty
 from tardis.plasma.properties.level_population import LevelNumberDensity
 from tardis.plasma.properties.nlte_rate_equation_solver import (
     NLTEPopulationSolverLU,
@@ -81,6 +81,8 @@ class PlasmaSolverFactory:
     plasma_collection = importlib.import_module(
         "tardis.plasma.properties.legacy_property_collections"
     )
+    prev_iteration_properties = []
+    prev_output_dict = {}
 
     def __init__(
         self,
@@ -544,6 +546,24 @@ class PlasmaSolverFactory:
         )
         return initial_continuum_properties
 
+
+    def check_nlte_prev_iterations(self, plasma_assemble_kwargs):
+        """
+        Check if plasma modules contain nlte species that can be stored as previous iteration properties.
+        """
+        for plasma_module in self.plasma_modules:
+            if issubclass(plasma_module, PreviousIterationProperty):
+                prev_property_object = plasma_module(
+                    **self.property_kwargs.get(plasma_module, {})
+                )
+                prev_property_object.set_initial_value(plasma_assemble_kwargs)
+                self.prev_iteration_properties.append(
+                    prev_property_object
+                )
+                for output in plasma_module.outputs:
+                    self.prev_output_dict[output] = prev_property_object
+
+
     def assemble(
         self,
         number_densities,
@@ -611,9 +631,12 @@ class PlasmaSolverFactory:
         self.setup_electron_densities(electron_densities)
         plasma_assemble_kwargs["helium_treatment"] = self.helium_treatment
         plasma_assemble_kwargs.update(kwargs)
+        self.check_nlte_prev_iterations(plasma_assemble_kwargs)
         return BasePlasma(
             plasma_properties=self.plasma_modules,
             property_kwargs=self.property_kwargs,
             plasma_solver_settings=plasma_solver_settings,
+            previous_iteration_properties=self.prev_iteration_properties,
+            previous_output_dict=self.prev_output_dict,
             **plasma_assemble_kwargs,
         )

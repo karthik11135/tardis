@@ -28,14 +28,23 @@ class BasePlasma(PlasmaWriterMixin):
         plasma_properties,
         property_kwargs=None,
         plasma_solver_settings=None,
+        previous_iteration_properties=None,
+        previous_output_dict=None,
         **kwargs,
     ):
         self.outputs_dict = {}
+        if previous_output_dict is  None:
+            previous_output_dict = {}
+        self.outputs_dict.update(previous_output_dict)
+        self.previous_iteration_properties = previous_iteration_properties
+        if self.previous_iteration_properties is None:
+            self.previous_iteration_properties = []
         self.input_properties = []
         self.plasma_properties = self._init_properties(
             plasma_properties, property_kwargs, **kwargs
         )
         self.plasma_solver_settings = plasma_solver_settings
+        self.plasma_properties.extend(self.previous_iteration_properties)
         self._build_graph()
         self.update(**kwargs)
 
@@ -137,20 +146,22 @@ class BasePlasma(PlasmaWriterMixin):
         if property_kwargs is None:
             property_kwargs = {}
         plasma_property_objects = []
-        self.previous_iteration_properties = []
-        self.outputs_dict = {}
+        # self.previous_iteration_properties = []
+        # self.outputs_dict = {}
         for plasma_property in plasma_properties:
 
-            if issubclass(plasma_property, PreviousIterationProperty):
-                current_property_object = plasma_property(
-                    **property_kwargs.get(plasma_property, {})
-                )
-                current_property_object.set_initial_value(kwargs)
-                self.previous_iteration_properties.append(
-                    current_property_object
-                )
+            # if issubclass(plasma_property, PreviousIterationProperty):
+            #     current_property_object = plasma_property(
+            #         **property_kwargs.get(plasma_property, {})
+            #     )
+            #     current_property_object.set_initial_value(kwargs)
+            #     self.previous_iteration_properties.append(
+            #         current_property_object
+            #     )
 
-            elif issubclass(plasma_property, Input):
+            if issubclass(plasma_property, PreviousIterationProperty):
+                continue;
+            if issubclass(plasma_property, Input):
                 if not set(kwargs.keys()).issuperset(plasma_property.outputs):
                     missing_input_values = set(plasma_property.outputs) - set(
                         kwargs.keys()
